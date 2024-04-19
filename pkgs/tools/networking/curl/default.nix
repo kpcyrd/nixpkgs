@@ -1,4 +1,4 @@
-{ lib, stdenv, fetchurl, darwin, pkg-config, perl, nixosTests
+{ lib, stdenv, fetchurl, darwin, pkg-config, perl, autoreconfHook, nixosTests
 , brotliSupport ? false, brotli
 , c-aresSupport ? false, c-aresMinimal
 , gnutlsSupport ? false, gnutls
@@ -63,6 +63,9 @@ stdenv.mkDerivation (finalAttrs: {
     # https://github.com/curl/curl/pull/13219
     # https://github.com/newsboat/newsboat/issues/2728
     ./8.7.1-compression-fix.patch
+  ] ++ lib.optionals (rustlsSupport && lib.versionOlder finalAttrs.version "8.7.2") [
+    # https://github.com/curl/curl/issues/13200 and https://github.com/curl/curl/issues/13248
+    ./rustls-build-fix.patch
   ];
 
   postPatch = ''
@@ -76,7 +79,8 @@ stdenv.mkDerivation (finalAttrs: {
 
   strictDeps = true;
 
-  nativeBuildInputs = [ pkg-config perl ];
+  nativeBuildInputs = [ pkg-config perl ]
+    ++ lib.optionals (rustlsSupport && lib.versionOlder finalAttrs.version "8.7.2") [ autoreconfHook ];
 
   # Zlib and OpenSSL must be propagated because `libcurl.la' contains
   # "-lz -lssl", which aren't necessary direct build inputs of
@@ -217,7 +221,7 @@ stdenv.mkDerivation (finalAttrs: {
     maintainers = with maintainers; [ lovek323 ];
     platforms = platforms.all;
     # Fails to link against static brotli or gss
-    broken = (stdenv.hostPlatform.isStatic && (brotliSupport || gssSupport || stdenv.hostPlatform.system == "x86_64-darwin")) || rustlsSupport;
+    broken = stdenv.hostPlatform.isStatic && (brotliSupport || gssSupport || stdenv.hostPlatform.system == "x86_64-darwin");
     pkgConfigModules = [ "libcurl" ];
     mainProgram = "curl";
   };
